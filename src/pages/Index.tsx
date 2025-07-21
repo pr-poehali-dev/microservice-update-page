@@ -45,13 +45,37 @@ const Index = () => {
     return () => clearInterval(timer);
   }, [updateScheduled, updateTime]);
 
-  const scheduleUpdate = () => {
+  const scheduleUpdate = async () => {
     if (updateTime) {
       const targetTime = new Date(updateTime);
       const now = new Date();
       if (targetTime > now) {
-        setUpdateScheduled(true);
-        setTimeLeft(targetTime.getTime() - now.getTime());
+        try {
+          const updateData = {
+            updateTime: updateTime,
+            blockSessions: blockSessions,
+            blockRegulations: blockRegulations,
+            restartService: restartService,
+            deleteExtensions: deleteExtensions
+          };
+
+          const response = await fetch('http://arturios.matrix/update', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(updateData)
+          });
+
+          if (response.ok) {
+            setUpdateScheduled(true);
+            setTimeLeft(targetTime.getTime() - now.getTime());
+          } else {
+            console.error('Ошибка при планировании обновления:', response.status);
+          }
+        } catch (error) {
+          console.error('Ошибка соединения:', error);
+        }
       }
     }
   };
