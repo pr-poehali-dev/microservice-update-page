@@ -11,6 +11,7 @@ const Index = () => {
   const [blockSessions, setBlockSessions] = useState(false);
   const [blockRegulations, setBlockRegulations] = useState(false);
   const [restartService, setRestartService] = useState(false);
+  const [deleteExtensions, setDeleteExtensions] = useState(false);
   const [updateScheduled, setUpdateScheduled] = useState(false);
   const [timeLeft, setTimeLeft] = useState<number>(0);
   const [currentTime, setCurrentTime] = useState(new Date());
@@ -18,7 +19,7 @@ const Index = () => {
   // Имитация данных системы
   const systemStats = {
     uptime: '15д 3ч 42м',
-    memory: 78,
+    users: 23,
     cpu: 34,
     activeConnections: 142,
     status: 'Активен'
@@ -139,12 +140,11 @@ const Index = () => {
             <CardContent className="p-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-medium text-slate-600">Память</p>
-                  <p className="text-2xl font-bold text-slate-800">{systemStats.memory}%</p>
-                  <Progress value={systemStats.memory} className="mt-2" />
+                  <p className="text-sm font-medium text-slate-600">Пользователи онлайн</p>
+                  <p className="text-2xl font-bold text-slate-800">{systemStats.users}</p>
                 </div>
                 <div className="h-12 w-12 bg-purple-100 rounded-full flex items-center justify-center">
-                  <Icon name="HardDrive" className="h-6 w-6 text-purple-600" />
+                  <Icon name="Users" className="h-6 w-6 text-purple-600" />
                 </div>
               </div>
             </CardContent>
@@ -215,7 +215,7 @@ const Index = () => {
               <div className="space-y-4">
                 <div className="flex items-center justify-between p-4 bg-slate-50 rounded-lg">
                   <div className="flex items-center">
-                    <Icon name="Users" className="mr-3 h-5 w-5 text-slate-600" />
+                    <Icon name="UserX" className="mr-3 h-5 w-5 text-slate-600" />
                     <div>
                       <p className="font-medium text-slate-800">Блокировка сеансов</p>
                       <p className="text-sm text-slate-600">Запретить новые подключения</p>
@@ -244,6 +244,17 @@ const Index = () => {
                     </div>
                   </div>
                   <Switch checked={restartService} onCheckedChange={setRestartService} />
+                </div>
+
+                <div className="flex items-center justify-between p-4 bg-slate-50 rounded-lg">
+                  <div className="flex items-center">
+                    <Icon name="Calendar" className="mr-3 h-5 w-5 text-slate-600" />
+                    <div>
+                      <p className="font-medium text-slate-800">Удалить расширения с датой</p>
+                      <p className="text-sm text-slate-600">Очистить временные расширения</p>
+                    </div>
+                  </div>
+                  <Switch checked={deleteExtensions} onCheckedChange={setDeleteExtensions} />
                 </div>
               </div>
 
