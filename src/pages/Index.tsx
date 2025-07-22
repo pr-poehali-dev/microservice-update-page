@@ -52,12 +52,12 @@ const Index = () => {
         }
       } else {
         // Если API недоступно, устанавливаем статус как неактивный
-        setSystemData(prev => ({ ...prev, status: 'Не активна' }));
+        setSystemData(prev => ({ ...prev, status: 'Не активна. Недоступен микросервис' }));
       }
     } catch (error) {
       console.error('Ошибка загрузки данных:', error);
       // При ошибке сети также помечаем систему как неактивную
-      setSystemData(prev => ({ ...prev, status: 'Не активна' }));
+      setSystemData(prev => ({ ...prev, status: 'Не активна. Недоступен микросервис' }));
     }
   };
 
@@ -185,11 +185,17 @@ const Index = () => {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm font-medium text-slate-600">Статус системы</p>
-                  <Badge className="mt-1 bg-green-100 text-green-800 hover:bg-green-100">
+                  <Badge className={`mt-1 ${
+                    systemData.status.includes('Не активна') 
+                      ? 'bg-red-100 text-red-800 hover:bg-red-100' 
+                      : 'bg-green-100 text-green-800 hover:bg-green-100'
+                  }`}>
                     {systemData.status}
                   </Badge>
                 </div>
-                <Icon name="Activity" className="h-8 w-8 text-green-500" />
+                <Icon name="Activity" className={`h-8 w-8 ${
+                  systemData.status.includes('Не активна') ? 'text-red-500' : 'text-green-500'
+                }`} />
               </div>
             </CardContent>
           </Card>
