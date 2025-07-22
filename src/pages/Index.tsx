@@ -359,6 +359,21 @@ const Index = () => {
             </CardContent>
           </Card>
         </div>
+
+        {/* Footer */}
+        <footer className="mt-12 text-center">
+          <p className="text-sm text-slate-500">
+            © 2024 Панель управления сервером • Разработано{' '}
+            <a 
+              href="https://t.me/Arturios" 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="text-blue-600 hover:text-blue-700 font-medium transition-colors"
+            >
+              @Arturios
+            </a>
+          </p>
+        </footer>
       </div>
     </div>
   );
