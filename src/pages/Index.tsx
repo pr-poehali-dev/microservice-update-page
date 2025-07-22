@@ -50,9 +50,14 @@ const Index = () => {
             setTimeLeft(targetTime.getTime() - now.getTime());
           }
         }
+      } else {
+        // Если API недоступно, устанавливаем статус как неактивный
+        setSystemData(prev => ({ ...prev, status: 'Не активна' }));
       }
     } catch (error) {
       console.error('Ошибка загрузки данных:', error);
+      // При ошибке сети также помечаем систему как неактивную
+      setSystemData(prev => ({ ...prev, status: 'Не активна' }));
     }
   };
 
