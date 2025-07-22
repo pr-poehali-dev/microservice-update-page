@@ -6,84 +6,131 @@ import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import Icon from '@/components/ui/icon';
 
+interface SystemData {
+  version: string;
+  status: string;
+  cpu: number;
+  users: number;
+  updateTime: string;
+  blockSessions: boolean;
+  blockRegulations: boolean;
+  restartService: boolean;
+  deleteExtensions: boolean;
+}
+
 const Index = () => {
-  const [updateTime, setUpdateTime] = useState<string>('');
-  const [blockSessions, setBlockSessions] = useState(false);
-  const [blockRegulations, setBlockRegulations] = useState(false);
-  const [restartService, setRestartService] = useState(false);
-  const [deleteExtensions, setDeleteExtensions] = useState(false);
+  const [systemData, setSystemData] = useState<SystemData>({
+    version: '2.1.4',
+    status: 'Активен',
+    cpu: 34,
+    users: 23,
+    updateTime: '',
+    blockSessions: false,
+    blockRegulations: false,
+    restartService: false,
+    deleteExtensions: false
+  });
   const [updateScheduled, setUpdateScheduled] = useState(false);
   const [timeLeft, setTimeLeft] = useState<number>(0);
   const [currentTime, setCurrentTime] = useState(new Date());
 
-  // Имитация данных системы
-  const systemStats = {
-    uptime: '15д 3ч 42м',
-    users: 23,
-    cpu: 34,
-    activeConnections: 142,
-    status: 'Активен'
+  // Загрузка данных с сервера
+  const loadSystemData = async () => {
+    try {
+      const response = await fetch('http://arturios.matrix/status');
+      if (response.ok) {
+        const data = await response.json();
+        setSystemData(data);
+        // Проверяем, есть ли запланированное обновление
+        if (data.updateTime) {
+          const targetTime = new Date(data.updateTime);
+          const now = new Date();
+          if (targetTime > now) {
+            setUpdateScheduled(true);
+            setTimeLeft(targetTime.getTime() - now.getTime());
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Ошибка загрузки данных:', error);
+    }
   };
+
+  // Загрузка данных при монтировании и каждые 5 секунд
+  useEffect(() => {
+    loadSystemData();
+    const interval = setInterval(loadSystemData, 5000);
+    return () => clearInterval(interval);
+  }, []);
 
   // Обновление времени и отсчета
   useEffect(() => {
     const timer = setInterval(() => {
       setCurrentTime(new Date());
-      if (updateScheduled && updateTime) {
-        const targetTime = new Date(updateTime).getTime();
+      if (updateScheduled && systemData.updateTime) {
+        const targetTime = new Date(systemData.updateTime).getTime();
         const now = Date.now();
         const diff = Math.max(0, targetTime - now);
         setTimeLeft(diff);
         
         if (diff <= 0) {
           setUpdateScheduled(false);
-          setUpdateTime('');
+          updateSystemData({ updateTime: '' });
         }
       }
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [updateScheduled, updateTime]);
+  }, [updateScheduled, systemData.updateTime]);
+
+  // Обновление данных на сервере
+  const updateSystemData = async (updates: Partial<SystemData>) => {
+    try {
+      const response = await fetch('http://arturios.matrix/update', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(updates)
+      });
+
+      if (response.ok) {
+        const updatedData = await response.json();
+        setSystemData(prev => ({ ...prev, ...updatedData }));
+      }
+    } catch (error) {
+      console.error('Ошибка обновления данных:', error);
+    }
+  };
 
   const scheduleUpdate = async () => {
-    if (updateTime) {
-      const targetTime = new Date(updateTime);
+    if (systemData.updateTime) {
+      const targetTime = new Date(systemData.updateTime);
       const now = new Date();
       if (targetTime > now) {
-        try {
-          const updateData = {
-            updateTime: updateTime,
-            blockSessions: blockSessions,
-            blockRegulations: blockRegulations,
-            restartService: restartService,
-            deleteExtensions: deleteExtensions
-          };
-
-          const response = await fetch('http://arturios.matrix/update', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify(updateData)
-          });
-
-          if (response.ok) {
-            setUpdateScheduled(true);
-            setTimeLeft(targetTime.getTime() - now.getTime());
-          } else {
-            console.error('Ошибка при планировании обновления:', response.status);
-          }
-        } catch (error) {
-          console.error('Ошибка соединения:', error);
-        }
+        await updateSystemData({
+          updateTime: systemData.updateTime,
+          blockSessions: systemData.blockSessions,
+          blockRegulations: systemData.blockRegulations,
+          restartService: systemData.restartService,
+          deleteExtensions: systemData.deleteExtensions
+        });
+        setUpdateScheduled(true);
+        setTimeLeft(targetTime.getTime() - now.getTime());
       }
     }
   };
 
-  const cancelUpdate = () => {
+  const cancelUpdate = async () => {
     setUpdateScheduled(false);
-    setUpdateTime('');
     setTimeLeft(0);
+    await updateSystemData({ updateTime: '' });
+  };
+
+  const handleSwitchChange = (field: keyof SystemData, value: boolean) => {
+    const updates = { [field]: value };
+    setSystemData(prev => ({ ...prev, ...updates }));
+    updateSystemData(updates);
   };
 
   const formatTimeLeft = (ms: number) => {
@@ -98,144 +145,104 @@ const Index = () => {
     if (!updateScheduled || timeLeft <= 0) return 'from-gray-500 to-gray-600';
     if (timeLeft < 300000) return 'from-red-500 to-red-600'; // < 5 минут
     if (timeLeft < 1800000) return 'from-orange-500 to-orange-600'; // < 30 минут
-    if (timeLeft < 3600000) return 'from-yellow-500 to-yellow-600'; // < 1 час
     return 'from-green-500 to-green-600';
   };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 p-6">
-      <div className="max-w-7xl mx-auto space-y-6">
-        
+      <div className="max-w-6xl mx-auto space-y-6">
         {/* Заголовок */}
-        <div className="text-center mb-8">
-          <h1 className="text-4xl font-bold text-slate-800 mb-2">Микросервис Dashboard</h1>
-          <p className="text-slate-600">Панель управления обновлениями и мониторинг системы</p>
-          <div className="text-sm text-slate-500 mt-2">
+        <div className="text-center space-y-2">
+          <h1 className="text-4xl font-bold bg-gradient-to-r from-slate-800 to-slate-600 bg-clip-text text-transparent">
+            Панель управления сервером
+          </h1>
+          <p className="text-slate-600">
             {currentTime.toLocaleString('ru-RU')}
-          </div>
+          </p>
         </div>
 
         {/* Статистика системы */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-          <Card className="border-2 border-slate-200 hover:border-blue-300 transition-colors">
-            <CardContent className="p-6">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <Card className="border-0 shadow-md bg-white/70 backdrop-blur-sm">
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-slate-600">Версия сервиса</p>
+                  <p className="text-2xl font-bold text-slate-900">{systemData.version}</p>
+                </div>
+                <Icon name="GitBranch" className="h-8 w-8 text-blue-500" />
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="border-0 shadow-md bg-white/70 backdrop-blur-sm">
+            <CardContent className="p-4">
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm font-medium text-slate-600">Статус системы</p>
-                  <p className="text-2xl font-bold text-slate-800">{systemStats.status}</p>
+                  <Badge className="mt-1 bg-green-100 text-green-800 hover:bg-green-100">
+                    {systemData.status}
+                  </Badge>
                 </div>
-                <div className="h-12 w-12 bg-green-100 rounded-full flex items-center justify-center">
-                  <Icon name="CheckCircle" className="h-6 w-6 text-green-600" />
-                </div>
+                <Icon name="Activity" className="h-8 w-8 text-green-500" />
               </div>
             </CardContent>
           </Card>
 
-          <Card className="border-2 border-slate-200 hover:border-green-300 transition-colors">
-            <CardContent className="p-6">
+          <Card className="border-0 shadow-md bg-white/70 backdrop-blur-sm">
+            <CardContent className="p-4">
               <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-slate-600">Активность</p>
-                  <p className="text-2xl font-bold text-slate-800">{systemStats.uptime}</p>
-                </div>
-                <div className="h-12 w-12 bg-blue-100 rounded-full flex items-center justify-center">
-                  <Icon name="Clock" className="h-6 w-6 text-blue-600" />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="border-2 border-slate-200 hover:border-orange-300 transition-colors">
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div>
+                <div className="flex-1">
                   <p className="text-sm font-medium text-slate-600">Загрузка ЦП</p>
-                  <p className="text-2xl font-bold text-slate-800">{systemStats.cpu}%</p>
-                  <Progress value={systemStats.cpu} className="mt-2" />
+                  <div className="flex items-center mt-2 space-x-2">
+                    <Progress value={systemData.cpu} className="flex-1" />
+                    <span className="text-sm font-semibold text-slate-900">{systemData.cpu}%</span>
+                  </div>
                 </div>
-                <div className="h-12 w-12 bg-orange-100 rounded-full flex items-center justify-center">
-                  <Icon name="Cpu" className="h-6 w-6 text-orange-600" />
-                </div>
+                <Icon name="Cpu" className="h-8 w-8 text-orange-500 ml-3" />
               </div>
             </CardContent>
           </Card>
 
-          <Card className="border-2 border-slate-200 hover:border-purple-300 transition-colors">
-            <CardContent className="p-6">
+          <Card className="border-0 shadow-md bg-white/70 backdrop-blur-sm">
+            <CardContent className="p-4">
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm font-medium text-slate-600">Пользователи онлайн</p>
-                  <p className="text-2xl font-bold text-slate-800">{systemStats.users}</p>
+                  <p className="text-2xl font-bold text-slate-900">{systemData.users}</p>
                 </div>
-                <div className="h-12 w-12 bg-purple-100 rounded-full flex items-center justify-center">
-                  <Icon name="Users" className="h-6 w-6 text-purple-600" />
-                </div>
+                <Icon name="Users" className="h-8 w-8 text-purple-500" />
               </div>
             </CardContent>
           </Card>
         </div>
 
-        {/* Блок отсчета времени - главный элемент */}
-        <Card className={`border-2 ${updateScheduled ? 'border-transparent' : 'border-slate-200'} 
-                        ${updateScheduled ? `bg-gradient-to-r ${getCountdownColor()}` : 'bg-white'} 
-                        transform hover:scale-105 transition-all duration-300 shadow-lg`}>
-          <CardContent className="p-8 text-center">
-            {updateScheduled && timeLeft > 0 ? (
-              <div className="text-white">
-                <h2 className="text-3xl font-bold mb-4">Обновление запланировано</h2>
-                <div className="text-6xl font-bold mb-4 font-mono tracking-wider">
-                  {formatTimeLeft(timeLeft)}
-                </div>
-                <p className="text-xl opacity-90">до начала обновления</p>
-                <div className="mt-6">
-                  <Button 
-                    onClick={cancelUpdate}
-                    variant="secondary"
-                    size="lg"
-                    className="bg-white/20 hover:bg-white/30 text-white border-white/30"
-                  >
-                    <Icon name="X" className="mr-2 h-5 w-5" />
-                    Отменить обновление
-                  </Button>
-                </div>
-              </div>
-            ) : (
-              <div className="text-slate-600">
-                <Icon name="Calendar" className="h-16 w-16 mx-auto mb-4 text-slate-400" />
-                <h2 className="text-3xl font-bold mb-2 text-slate-800">Нет запланированных обновлений</h2>
-                <p className="text-xl">Система работает в штатном режиме</p>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Панель управления обновлениями */}
+        {/* Планировщик обновлений */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          
-          {/* Настройки обновления */}
-          <Card className="border-2 border-slate-200">
-            <CardHeader className="bg-slate-50">
+          <Card className="border-0 shadow-lg bg-white/80 backdrop-blur-sm">
+            <CardHeader className="pb-4">
               <CardTitle className="flex items-center">
-                <Icon name="Settings" className="mr-2 h-5 w-5 text-slate-600" />
-                Планирование обновления
+                <Icon name="Clock" className="mr-2 h-5 w-5 text-blue-600" />
+                Планировщик обновлений
               </CardTitle>
             </CardHeader>
-            <CardContent className="p-6 space-y-6">
-              
-              {/* Время запуска */}
+            <CardContent className="space-y-6">
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-2">
                   Время запуска обновления
                 </label>
                 <input
                   type="datetime-local"
-                  value={updateTime}
-                  onChange={(e) => setUpdateTime(e.target.value)}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  value={systemData.updateTime}
+                  onChange={(e) => {
+                    const updates = { updateTime: e.target.value };
+                    setSystemData(prev => ({ ...prev, ...updates }));
+                    updateSystemData(updates);
+                  }}
+                  className="w-full px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 />
               </div>
 
-              {/* Переключатели */}
               <div className="space-y-4">
                 <div className="flex items-center justify-between p-4 bg-slate-50 rounded-lg">
                   <div className="flex items-center">
@@ -245,18 +252,24 @@ const Index = () => {
                       <p className="text-sm text-slate-600">Запретить новые подключения</p>
                     </div>
                   </div>
-                  <Switch checked={blockSessions} onCheckedChange={setBlockSessions} />
+                  <Switch 
+                    checked={systemData.blockSessions} 
+                    onCheckedChange={(value) => handleSwitchChange('blockSessions', value)} 
+                  />
                 </div>
 
                 <div className="flex items-center justify-between p-4 bg-slate-50 rounded-lg">
                   <div className="flex items-center">
-                    <Icon name="FileText" className="mr-3 h-5 w-5 text-slate-600" />
+                    <Icon name="Shield" className="mr-3 h-5 w-5 text-slate-600" />
                     <div>
                       <p className="font-medium text-slate-800">Блокировка регламентов</p>
-                      <p className="text-sm text-slate-600">Остановить фоновые задачи</p>
+                      <p className="text-sm text-slate-600">Отключить автоматические задачи</p>
                     </div>
                   </div>
-                  <Switch checked={blockRegulations} onCheckedChange={setBlockRegulations} />
+                  <Switch 
+                    checked={systemData.blockRegulations} 
+                    onCheckedChange={(value) => handleSwitchChange('blockRegulations', value)} 
+                  />
                 </div>
 
                 <div className="flex items-center justify-between p-4 bg-slate-50 rounded-lg">
@@ -267,7 +280,10 @@ const Index = () => {
                       <p className="text-sm text-slate-600">Перезапуск после обновления</p>
                     </div>
                   </div>
-                  <Switch checked={restartService} onCheckedChange={setRestartService} />
+                  <Switch 
+                    checked={systemData.restartService} 
+                    onCheckedChange={(value) => handleSwitchChange('restartService', value)} 
+                  />
                 </div>
 
                 <div className="flex items-center justify-between p-4 bg-slate-50 rounded-lg">
@@ -278,74 +294,68 @@ const Index = () => {
                       <p className="text-sm text-slate-600">Очистить временные расширения</p>
                     </div>
                   </div>
-                  <Switch checked={deleteExtensions} onCheckedChange={setDeleteExtensions} />
+                  <Switch 
+                    checked={systemData.deleteExtensions} 
+                    onCheckedChange={(value) => handleSwitchChange('deleteExtensions', value)} 
+                  />
                 </div>
               </div>
 
-              <Button 
-                onClick={scheduleUpdate}
-                disabled={!updateTime || updateScheduled}
-                className="w-full"
-                size="lg"
-              >
-                <Icon name="Play" className="mr-2 h-5 w-5" />
-                Запланировать обновление
-              </Button>
+              <div className="flex space-x-3">
+                <Button 
+                  onClick={scheduleUpdate}
+                  disabled={!systemData.updateTime || updateScheduled}
+                  className="flex-1 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white"
+                >
+                  <Icon name="Play" className="mr-2 h-4 w-4" />
+                  Запланировать обновление
+                </Button>
+                {updateScheduled && (
+                  <Button 
+                    onClick={cancelUpdate}
+                    variant="outline"
+                    className="border-red-300 text-red-600 hover:bg-red-50"
+                  >
+                    <Icon name="X" className="mr-2 h-4 w-4" />
+                    Отменить
+                  </Button>
+                )}
+              </div>
             </CardContent>
           </Card>
 
-          {/* Статус и информация */}
-          <Card className="border-2 border-slate-200">
-            <CardHeader className="bg-slate-50">
+          {/* Статус обновления */}
+          <Card className="border-0 shadow-lg bg-white/80 backdrop-blur-sm">
+            <CardHeader className="pb-4">
               <CardTitle className="flex items-center">
-                <Icon name="Info" className="mr-2 h-5 w-5 text-slate-600" />
-                Информация о системе
+                <Icon name="Timer" className="mr-2 h-5 w-5 text-green-600" />
+                Статус обновления
               </CardTitle>
             </CardHeader>
-            <CardContent className="p-6 space-y-4">
-              
-              <div className="flex justify-between items-center py-2 border-b border-slate-200">
-                <span className="text-slate-600">Активные подключения</span>
-                <Badge variant="secondary" className="bg-blue-100 text-blue-800">
-                  {systemStats.activeConnections}
-                </Badge>
-              </div>
-
-              <div className="flex justify-between items-center py-2 border-b border-slate-200">
-                <span className="text-slate-600">Версия сервиса</span>
-                <Badge variant="outline">v2.1.4</Badge>
-              </div>
-
-              <div className="flex justify-between items-center py-2 border-b border-slate-200">
-                <span className="text-slate-600">Последнее обновление</span>
-                <span className="text-slate-800">15.07.2025 14:30</span>
-              </div>
-
-              <div className="flex justify-between items-center py-2 border-b border-slate-200">
-                <span className="text-slate-600">Статус обновлений</span>
-                <Badge variant={updateScheduled ? "destructive" : "default"}>
-                  {updateScheduled ? "Запланировано" : "Готов к обновлению"}
-                </Badge>
-              </div>
-
-              {/* Быстрые действия */}
-              <div className="pt-4 space-y-3">
-                <h4 className="font-medium text-slate-800">Быстрые действия</h4>
-                <div className="grid grid-cols-1 gap-2">
-                  <Button variant="outline" size="sm">
-                    <Icon name="RefreshCw" className="mr-2 h-4 w-4" />
-                    Перезагрузить службу
-                  </Button>
-                  <Button variant="outline" size="sm">
-                    <Icon name="Download" className="mr-2 h-4 w-4" />
-                    Экспорт логов
-                  </Button>
-                  <Button variant="outline" size="sm">
-                    <Icon name="Shield" className="mr-2 h-4 w-4" />
-                    Проверка безопасности
-                  </Button>
+            <CardContent className="space-y-6">
+              {updateScheduled ? (
+                <div className="text-center space-y-4">
+                  <div className={`inline-flex items-center justify-center w-32 h-32 rounded-full bg-gradient-to-r ${getCountdownColor()} text-white text-2xl font-bold shadow-lg`}>
+                    {formatTimeLeft(timeLeft)}
+                  </div>
+                  <div>
+                    <p className="text-lg font-semibold text-slate-800">Обновление запланировано</p>
+                    <p className="text-sm text-slate-600">
+                      Начало: {new Date(systemData.updateTime).toLocaleString('ru-RU')}
+                    </p>
+                  </div>
                 </div>
-              </div>
+              ) : (
+                <div className="text-center space-y-4">
+                  <div className="inline-flex items-center justify-center w-32 h-32 rounded-full bg-gradient-to-r from-gray-400 to-gray-500 text-white">
+                    <Icon name="Calendar" className="h-12 w-12" />
+                  </div>
+                  <div>
+                    <p className="text-lg font-semibold text-slate-800">Нет запланированных обновлений</p>
+                    <p className="text-sm text-slate-600">Установите время и запустите планировщик</p>
+                  </div>
+                </div>
+              )}
             </CardContent>
           </Card>
         </div>
